@@ -4,13 +4,13 @@ import matplotlib.cm as cm
 
 from sklearn.utils import shuffle
 
-class HardKMeans(object):
+class SoftKMeans(object):
     def __init__(self,K,beta):
         self.f = 2    # no: of features
         self.N = 1200 # dataset size
         self.K = K    # cluster centers
         self.beta = beta
-        self.minimal_cost_defference = 10e-5
+        self.minimal_cost_defference = 1e-5
 
     def create_data(self, m):
         X = np.zeros((self.N, self.f))
@@ -18,10 +18,12 @@ class HardKMeans(object):
         mu1 = np.array([0,0])
         mu2 = np.array([m,m])
         mu3 = np.array([0,m])
+        mu4 = np.array([m,0])
 
         X[:300,] = np.random.randn(300,self.f) + mu1
         X[300:600,] = np.random.randn(300,self.f) + mu2
         X[600:900,] = np.random.randn(300,self.f) + mu3
+        X[900:1200,] = np.random.randn(300,self.f) + mu4
 
         plt.scatter(X[:,0],X[:,1])
         plt.title('before_clustering')
@@ -43,15 +45,16 @@ class HardKMeans(object):
         self.Mu = Mu
 
     def calculate_responsibilities(self):
-        self.R = np.empty((self.N, self.K))
-        for i,x in enumerate(self.X):
-            for j,mu_k in enumerate(self.Mu):
-                self.R[i,j] = np.exp(-self.beta * HardKMeans.distance(mu_k,x))
-        self.R = self.R/ np.sum(self.R, axis=1, keepdims=True)
+        R = np.empty((self.N, self.K))
+        for j,mu_k in enumerate(self.Mu):
+            for i,x in enumerate(self.X):
+                R[i,j] = np.exp(-self.beta * SoftKMeans.distance(mu_k,x))
+        R = R/ R.sum(axis=1, keepdims=True)
+        self.R = R
 
     def calculate_mean(self):
         Means = np.dot(self.R.T , self.X)
-        self.Mu = Means / Means.sum(axis=0, keepdims=True)
+        self.Mu = Means / self.R.sum(axis=0, keepdims=True).T
 
     def loss_fnction(self):
         loss = 0
@@ -65,9 +68,9 @@ class HardKMeans(object):
         plt.title("Costs")
         plt.show()
 
-        random_colors = np.random.random((self.K, 3))
+        random_colors = np.random.rand(self.K, 3)
         colors = self.R.dot(random_colors)
-        plt.scatter(self.X[:,0], self.X[:,1], c=colors)
+        plt.scatter(self.X[:,0], self.X[:,1], color=colors)
         plt.title('K = '+str(self.K))
         plt.savefig(str(self.K)+'.png')
         plt.show()
@@ -76,18 +79,16 @@ class HardKMeans(object):
         Total_loss = []
         self.create_data(m)
         self.initialize_clusters()
-        a = 0
         while True:
-            print(a)
             self.calculate_responsibilities()
             self.calculate_mean()
             loss = self.loss_fnction()
             Total_loss.append(loss)
             if len(Total_loss) > 2:
-               if Total_loss[-2] - Total_loss[-1] <  self.minimal_cost_defference:
+               if abs(Total_loss[-2] - Total_loss[-1]) <  self.minimal_cost_defference:
                 self.plot_data(Total_loss)
                 break
-            a += 1
 if __name__ == "__main__":
-    cluster = HardKMeans(4,20.0)
-    cluster.train(8)
+    for k in range(2,7):
+        cluster = SoftKMeans(k,10.0)
+        cluster.train(4)
